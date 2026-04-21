@@ -1,0 +1,19 @@
+// See https://containers.dev/implementors/json_reference/ for configuration reference
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "forwardPorts": [4100],
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  // "remoteUser": "root",
+  // "updateRemoteUserUID": true,
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}_node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+  ],
+  "runArgs": [
+    "--name=dev-${localWorkspaceFolderBasename}",
+    "--publish", "4100:4000",
+    "--env", "TZ=Europe/Bucharest"
+  ],
+  "postCreateCommand": "npm config set strict-ssl false"
+}
