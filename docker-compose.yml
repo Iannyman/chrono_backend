@@ -6,7 +6,7 @@ services:
     container_name: chrono_backend
     network_mode: bridge
     ports:
-      - 4100:4000
+      - 4000:4000
     env_file:
       - .env
     restart: unless-stopped

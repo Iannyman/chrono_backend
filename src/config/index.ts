@@ -56,7 +56,7 @@ export interface Config {
 
 function getServerConfig(): ServerConfig {
   return {
-    port: parseInt(process.env.PORT || '4000', 10),
+    port: parseInt(process.env.PORT),
     nodeEnv: process.env.NODE_ENV || 'development',
   };
 }
