@@ -39,7 +39,8 @@ export function createApp(): express.Express {
 
   // CORS
   app.use(corsMiddleware);
-
+  app.options(/.*/, corsMiddleware);
+  
   // Apply rate limiting to all routes
   app.use(rateLimiter);
 

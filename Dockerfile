@@ -11,5 +11,5 @@ RUN npm config set strict-ssl false && npm install
 # --- Production ---
 FROM base AS production
 COPY . .
-EXPOSE 4000
+EXPOSE 4100
 CMD ["npx", "tsx", "src/server.ts"]
