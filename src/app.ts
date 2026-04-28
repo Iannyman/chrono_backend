@@ -9,6 +9,8 @@ import healthRoutes from './api/routes/health.js';
 import authRoutes from './api/routes/auth.js';
 import bufferRoutes from './api/routes/buffer.js';
 import logsRoutes from './api/routes/logs.js';
+import personsRoutes from './api/routes/persons.js';
+import cardsRoutes from './api/routes/cards.js';
 
 /**
  * Create and configure Express application
@@ -51,6 +53,8 @@ export function createApp(): express.Express {
   app.use('/readers', readersRoutes);
   app.use('/buffer', bufferRoutes);
   app.use('/logs', logsRoutes);
+  app.use('/persons', personsRoutes);
+  app.use('/cards', cardsRoutes);
 
   // Root endpoint
   app.get('/', (_req, res) => {
