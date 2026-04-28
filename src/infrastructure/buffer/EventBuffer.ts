@@ -168,7 +168,7 @@ export class EventBuffer {
 
       // Successfully flushed, try to flush any previously persisted events
       const hadPersisted = existsSync(this.persistPath);
-      await this.loadPersisted();
+
       if (this.buffer.length > 0) {
         logger.info({ count: this.buffer.length }, 'Re-flushing previously persisted events');
         await this.flushCallback(this.buffer.splice(0, this.buffer.length).map(e => e.event));

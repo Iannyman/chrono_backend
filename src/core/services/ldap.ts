@@ -14,10 +14,24 @@ export interface LdapUser {
   sAMAccountName: string;
 }
 
+/**
+* Escape special characters for LDAP filter values per RFC 4515
+*/
+function escapeLdapFilter(value: string): string {
+  return value
+    .replace(/\\/g, '\\5c')
+    .replace(/\*/g, '\\2a')
+    .replace(/\(/g, '\\28')
+    .replace(/\)/g, '\\29')
+    .replace(/\x00/g, '\\00');
+}
+
+
 async function searchUser(client: Client, searchBase: string, username: string) {
+  const safeUsername = escapeLdapFilter(username);
   const { searchEntries } = await client.search(searchBase, {
     scope: 'sub',
-    filter: `(sAMAccountName=${username})`,
+    filter: `(sAMAccountName=${safeUsername})`,
     attributes: ['dn', 'displayName', 'department', 'sAMAccountName'],
   });
   return searchEntries;
@@ -90,7 +104,7 @@ export async function logUserAttributes(username: string, searchBase: string = S
 
     const { searchEntries } = await client.search(searchBase, {
       scope: 'sub',
-      filter: `(sAMAccountName=${username})`,
+      filter: `(sAMAccountName=${escapeLdapFilter(username)})`,
       attributes: ['*'],
     });
 

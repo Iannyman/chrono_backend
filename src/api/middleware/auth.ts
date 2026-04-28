@@ -38,7 +38,7 @@ export function authenticate(
     const decoded = jwt.verify(token, config.security.jwtSecret) as JwtPayload;
     req.user = decoded;
     next();
-  } catch (_error) {
+  } catch {
     throw new HttpError('Invalid or expired authentication token', 401);
   }
 }

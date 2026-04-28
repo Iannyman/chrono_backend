@@ -65,7 +65,6 @@ async function start(): Promise<void> {
 
       // Disconnect from SQL Server
       await sqlService.disconnect();
-      await eventBuffer.stop();
 
       logger.info('Shutdown complete');
       process.exit(0);
