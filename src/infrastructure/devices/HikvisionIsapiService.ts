@@ -100,22 +100,21 @@ export class HikvisionIsapiService {
         reader: this.readerName, method, path,
         status: response.status, body: text, duration,
       }, 'ISAPI request failed');
-      throw new HttpError(`ISAPI request failed: HTTP ${response.status} - ${text}`, 502);
+
+      // Try to parse as JSON — return device error in same format as success
+      try {
+        return JSON.parse(text) as IsapiResponse;
+      } catch {
+        throw new HttpError(`ISAPI request failed: HTTP ${response.status} - ${text}`, 502);
+      }
     }
 
-    const data = await response.json() as IsapiResponse;
+    const data = await response.json();
 
     logger.info({
-      reader: this.readerName, method, path,
-      statusCode: data.statusCode, subStatusCode: data.subStatusCode, duration,
+      reader: this.readerName, method, path, duration,
+      data,
     }, 'ISAPI response');
-
-    if (data.statusCode !== 1) {
-      throw new HttpError(
-        `ISAPI error: ${data.statusString} (${data.subStatusCode})`,
-        502,
-      );
-    }
 
     return data;
   }

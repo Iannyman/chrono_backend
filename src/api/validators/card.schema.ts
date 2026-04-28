@@ -17,8 +17,8 @@ export const searchCardsSchema = z.object({
 export const modifyCardSchema = z.object({
   readerName: z.string().min(1),
   employeeNo: z.string().min(1),
-  cardNo: z.string().optional(),
-  cardType: z.string().optional(),
+  cardNo: z.string().min(1),
+  cardType: z.string().default('normalCard'),
 });
 
 export const deleteCardSchema = z.object({

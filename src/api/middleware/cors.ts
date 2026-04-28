@@ -6,7 +6,7 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .filter(Boolean); // remove empty strings
 
 const corsOptions = {
-  origin: function (origin, callback) {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // Allow requests with no origin (Postman, curl, mobile apps)
     if (!origin) return callback(null, true);
 

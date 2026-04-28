@@ -9,12 +9,12 @@ export const createPersonSchema = z.object({
     enable: z.boolean().default(true),
     beginTime: z.string().default('2020-01-01T00:00:00'),
     endTime: z.string().default('2030-12-31T23:59:59'),
-  }).optional(),
-  doorRight: z.string().optional(),
+  }).default({ enable: true, beginTime: '2020-01-01T00:00:00', endTime: '2030-12-31T23:59:59' }),
+  doorRight: z.string().default('1'),
   rightPlan: z.array(z.object({
     doorNo: z.number(),
     planTemplateNo: z.string(),
-  })).optional(),
+  })).default([{ doorNo: 1, planTemplateNo: '1' }]),
 });
 
 export const searchPersonsSchema = z.object({
@@ -44,6 +44,30 @@ export const modifyPersonSchema = z.object({
 export const deletePersonSchema = z.object({
   readerName: z.string().min(1),
   employeeNoList: z.array(z.string().min(1)).min(1),
+});
+
+export const personDetailsSchema = z.object({
+  readerName: z.string().min(1),
+  employeeNoList: z.array(z.string().min(1)).min(1),
+});
+
+export const createPersonWithCardSchema = z.object({
+  readerName: z.string().min(1),
+  employeeNo: z.string().min(1),
+  name: z.string().min(1),
+  cardNo: z.string().min(1),
+  userType: z.string().default('normal'),
+  cardType: z.string().default('normalCard'),
+  valid: z.object({
+    enable: z.boolean().default(true),
+    beginTime: z.string().default('2020-01-01T00:00:00'),
+    endTime: z.string().default('2030-12-31T23:59:59'),
+  }).default({ enable: true, beginTime: '2020-01-01T00:00:00', endTime: '2030-12-31T23:59:59' }),
+  doorRight: z.string().default('1'),
+  rightPlan: z.array(z.object({
+    doorNo: z.number(),
+    planTemplateNo: z.string(),
+  })).default([{ doorNo: 1, planTemplateNo: '1' }]),
 });
 
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;

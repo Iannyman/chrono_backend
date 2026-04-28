@@ -4,6 +4,7 @@ import { rateLimiter } from '../middleware/rateLimit.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { HikvisionIsapiService } from '../../infrastructure/devices/HikvisionIsapiService.js';
+import readers from '../../config/readers.js';
 import {
   createCardSchema,
   searchCardsSchema,
@@ -15,19 +16,40 @@ const router = Router();
 
 router.use(authenticate);
 
-// POST /cards - Create a card on a device
+function resolveReaders(readerName: string): string[] {
+  if (readerName === 'all') return readers.map(r => r.name);
+  return [readerName];
+}
+
+async function fanOut<T>(
+  readerName: string,
+  fn: (isapi: HikvisionIsapiService) => Promise<T>,
+): Promise<Record<string, T>> {
+  const names = resolveReaders(readerName);
+  const results: Record<string, T> = {};
+  for (const name of names) {
+    try {
+      const isapi = HikvisionIsapiService.forReader(name);
+      results[name] = await fn(isapi);
+    } catch (err) {
+      results[name] = { error: err instanceof Error ? err.message : String(err) } as T;
+    }
+  }
+  return results;
+}
+
+// POST /cards - Create a card on Hikvision device(s)
 router.post('/',
   rateLimiter,
   validateBody(createCardSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { readerName, employeeNo, cardNo, cardType } = req.body;
 
-    const isapi = HikvisionIsapiService.forReader(readerName);
-    const result = await isapi.createCard({
-      CardInfo: { employeeNo, cardNo, cardType },
-    });
+    const results = await fanOut(readerName, (isapi) =>
+      isapi.createCard({ CardInfo: { employeeNo, cardNo, cardType } }),
+    );
 
-    res.status(201).json({ data: result });
+    res.status(201).json({ data: results });
   })
 );
 
@@ -41,12 +63,12 @@ router.post('/search',
     const isapi = HikvisionIsapiService.forReader(readerName);
     const result = await isapi.searchCards({
       CardInfoSearchCond: {
-        searchID: crypto.randomUUID(),
+        searchID: `search-${Date.now()}`,
         searchResultPosition,
         maxResults,
-        ...(employeeNoList && {
-          EmployeeNoList: employeeNoList.map((no: string) => ({ employeeNo: no })),
-        }),
+        EmployeeNoList: employeeNoList
+          ? employeeNoList.map((no: string) => ({ employeeNo: no }))
+          : [],
       },
     });
 
@@ -54,41 +76,40 @@ router.post('/search',
   })
 );
 
-// PUT /cards - Modify a card
+// PUT /cards - Replace card for a user on Hikvision device(s) (delete old + create new)
 router.put('/',
   rateLimiter,
   validateBody(modifyCardSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { readerName, employeeNo, cardNo, cardType } = req.body;
 
-    const isapi = HikvisionIsapiService.forReader(readerName);
-    const result = await isapi.modifyCard({
-      CardInfo: {
-        employeeNo,
-        ...(cardNo && { cardNo }),
-        ...(cardType && { cardType }),
-      },
+    const results = await fanOut(readerName, async (isapi) => {
+      await isapi.deleteCard({
+        CardInfoDelCond: { EmployeeNoList: [{ employeeNo }] },
+      });
+      return isapi.createCard({ CardInfo: { employeeNo, cardNo, cardType } });
     });
 
-    res.json({ data: result });
+    res.json({ data: results });
   })
 );
 
-// PUT /cards/delete - Delete card(s)
+// PUT /cards/delete - Delete card(s) on Hikvision device(s)
 router.put('/delete',
   rateLimiter,
   validateBody(deleteCardSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const { readerName, employeeNoList } = req.body;
 
-    const isapi = HikvisionIsapiService.forReader(readerName);
-    const result = await isapi.deleteCard({
-      CardInfoDelCond: {
-        EmployeeNoList: employeeNoList.map((no: string) => ({ employeeNo: no })),
-      },
-    });
+    const results = await fanOut(readerName, (isapi) =>
+      isapi.deleteCard({
+        CardInfoDelCond: {
+          EmployeeNoList: employeeNoList.map((no: string) => ({ employeeNo: no })),
+        },
+      }),
+    );
 
-    res.json({ data: result });
+    res.json({ data: results });
   })
 );
 
