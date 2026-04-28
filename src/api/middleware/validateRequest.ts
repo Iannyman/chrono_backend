@@ -13,12 +13,13 @@ export function validateRequest(
 ) {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
-      schema.parse(req[target]);
+      req[target] = schema.parse(req[target]);
       next();
     } catch (error) {
       if (error instanceof ZodError) {
+        const details = error.issues.map((i: { path: (string | number)[]; message: string }) => `${i.path.join('.')}: ${i.message}`).join('; ');
         throw new HttpError(
-          `Validation failed for ${target}`,
+          `Validation failed for ${target}: ${details}`,
           400
         );
       }

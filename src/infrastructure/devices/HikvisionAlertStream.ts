@@ -41,7 +41,7 @@ export class HikvisionAlertStream {
     this.readerName = config.readerName;
     this.ip = config.ip;
     this.client = new DigestFetch(config.username, config.password);
-    this.url = `http://${config.ip}/ISAPI/Event/notification/alertStream`;
+    this.url = `http://${config.ip}/ISAPI/Event/notification/alertStream?format=json`;
     this.reconnectDelay = config.reconnectDelay ?? 3000;
     this.onEvent = config.onEvent;
     this.onStatusChange = config.onStatusChange;
@@ -86,12 +86,20 @@ export class HikvisionAlertStream {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ reader: this.readerName, error: errorMessage }, 'Alert stream error');
-        alertService.sendReaderOfflineAlert(this.readerName, errorMessage)
 
+        // Account lockout detection — back off longer on 401
+        const isAuthError = errorMessage.includes('401');
+        const delay = isAuthError ? 60000 : this.reconnectDelay;
+
+        if (isAuthError) {
+          logger.warn({ reader: this.readerName }, 'Auth failed — waiting 60s before retry to avoid device lockout');
+        }
+
+        alertService.sendReaderOfflineAlert(this.readerName, errorMessage);
         await this.notifyStatusChange(false, errorMessage);
 
         if (this.isRunning) {
-          await this.delay(this.reconnectDelay);
+          await this.delay(delay);
         }
       }
     }
@@ -103,30 +111,40 @@ export class HikvisionAlertStream {
   private async connectAndProcess(): Promise<void> {
     const signal = this.abortController?.signal;
 
-    const response = await this.client.fetch(this.url, { signal });
+    const response = await this.client.fetch(this.url, {
+      signal,
+      headers: { 'Accept': 'multipart/mixed' },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    await this.notifyStatusChange(true);
-    logger.info({ reader: this.readerName }, 'Connected to device alert stream');
+    // Extract boundary from Content-Type header
+    const contentType = response.headers.get('content-type') ?? '';
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    const boundary = boundaryMatch ? boundaryMatch[1].trim().replace(/^"|"$/g, '') : null;
 
-    await this.processStream(response.body);
+    if (!boundary) {
+      logger.warn({ reader: this.readerName }, 'No boundary in Content-Type, falling back to brace-counting');
+    }
+
+    await this.notifyStatusChange(true);
+    logger.info({ reader: this.readerName, boundary }, 'Connected to device alert stream');
+
+    await this.processStream(response.body, boundary);
   }
 
   /**
    * Process the streaming response body
    */
-  private async processStream(body: ReadableStream | null): Promise<void> {
+  private async processStream(body: ReadableStream | null, boundary: string | null): Promise<void> {
     if (!body) {
       throw new Error('Response body is null');
     }
 
     const reader = body.getReader();
     let buffer = '';
-    let braceCount = 0;
-    let insideJson = false;
 
     try {
       while (this.isRunning) {
@@ -137,12 +155,24 @@ export class HikvisionAlertStream {
           throw new Error('Stream ended');
         }
 
-        const text = new TextDecoder().decode(value);
-        await this.processBuffer(text, buffer, braceCount, insideJson, (newState) => {
-          buffer = newState.buffer;
-          braceCount = newState.braceCount;
-          insideJson = newState.insideJson;
-        });
+        buffer += new TextDecoder().decode(value);
+
+        if (boundary) {
+          // Multipart boundary parsing
+          const parts = buffer.split(`--${boundary}`);
+          // Last part may be incomplete — keep it in the buffer
+          buffer = parts.pop() ?? '';
+
+          for (const part of parts) {
+            const bodyText = this.stripMultipartHeaders(part);
+            if (bodyText.trim()) {
+              await this.tryParseEvent(bodyText.trim());
+            }
+          }
+        } else {
+          // Fallback: brace-counting parser
+          buffer = await this.parseByBraceCount(buffer);
+        }
       }
     } finally {
       reader.releaseLock();
@@ -150,37 +180,43 @@ export class HikvisionAlertStream {
   }
 
   /**
-   * Process incoming buffer character by character to extract JSON events
+   * Strip multipart headers (everything before first blank line)
    */
-  private async processBuffer(
-    text: string,
-    buffer: string,
-    braceCount: number,
-    insideJson: boolean,
-    setState: (state: { buffer: string; braceCount: number; insideJson: boolean }) => void
-  ): Promise<void> {
-    for (const char of text) {
-      if (char === '{') {
+  private stripMultipartHeaders(part: string): string {
+    const idx = part.indexOf('\r\n\r\n');
+    if (idx !== -1) return part.substring(idx + 4);
+    // Try just \n\n as fallback
+    const idx2 = part.indexOf('\n\n');
+    if (idx2 !== -1) return part.substring(idx2 + 2);
+    return part;
+  }
+
+  /**
+   * Fallback brace-counting parser for devices that don't send boundaries
+   */
+  private async parseByBraceCount(buffer: string): Promise<string> {
+    let braceCount = 0;
+    let insideJson = false;
+    let start = 0;
+
+    for (let i = 0; i < buffer.length; i++) {
+      if (buffer[i] === '{') {
+        if (braceCount === 0) start = i;
         braceCount++;
         insideJson = true;
       }
-
-      if (insideJson) {
-        buffer += char;
-      }
-
-      if (char === '}') {
+      if (buffer[i] === '}') {
         braceCount--;
-
         if (braceCount === 0 && insideJson) {
-          await this.tryParseEvent(buffer);
-          buffer = '';
+          await this.tryParseEvent(buffer.substring(start, i + 1));
           insideJson = false;
         }
       }
     }
 
-    setState({ buffer, braceCount, insideJson });
+    // Return remaining buffer (partial JSON)
+    if (insideJson) return buffer.substring(start);
+    return '';
   }
 
   /**
@@ -242,7 +278,6 @@ export async function createAlertStream(
     onEvent,
     onStatusChange,
   });
-
   await stream.start();
   return stream;
 }
