@@ -96,10 +96,6 @@ export class HikvisionIsapiService {
 
     if (!response.ok) {
       const text = await response.text();
-      logger.error({
-        reader: this.readerName, method, path,
-        status: response.status, body: text, duration,
-      }, 'ISAPI request failed');
 
       // Try to parse as JSON — return device error in same format as success
       try {
