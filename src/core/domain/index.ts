@@ -10,3 +10,5 @@ export type {
   ReaderStatusUpdate,
   ReaderConfig,
 } from './Reader.js';
+
+export type * from './IsapiTypes.js';

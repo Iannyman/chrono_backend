@@ -2,7 +2,7 @@ import sql from 'mssql';
 import { config } from '../../config/index.js';
 import { logger } from '../logging/logger.js';
 import type { RecordEvent } from '../../core/domain/RecordEvent.js';
-// import { alertService } from '../../core/services/AlertService.js';
+import { alertService } from '../../core/services/AlertService.js';
 
 export class SqlService {
   private pool?: sql.ConnectionPool;
@@ -77,7 +77,7 @@ export class SqlService {
       }, 'Stored procedure returned error');
 
       // Send email alert
-      // alertService.sendSystemAlert(response.message , 'SQL Event');
+      alertService.sendSystemAlert(response.message , 'SQL Event');
 
       throw new Error(response.message ?? 'Stored procedure returned failure');
     } else {
@@ -111,8 +111,8 @@ export class SqlService {
         }, 'Failed to insert event');
 
         // Send email alert
-        // const emailMessage = error instanceof Error ? error.message : String(error);
-        // alertService.sendSystemAlert(emailMessage, 'SQL Connection');
+        const emailMessage = error instanceof Error ? error.message : String(error);
+        alertService.sendSystemAlert(emailMessage, 'SQL Connection');
       }
     }
 
