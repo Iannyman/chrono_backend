@@ -3,10 +3,10 @@ import { sqlService } from '../infrastructure/database/SqlService.js';
 import { logger } from '../infrastructure/logging/logger.js';
 
 const envReaders: ReaderConfig[] = [];
+const source = process.env.READERS_SOURCE?.toLowerCase();
 
-// Load readers from environment variable as JSON
-// Example: READERS=[{"name":"308","ip":"172.23.43.92"},{"name":"304DW","ip":"172.23.43.16"}]
-if (process.env.READERS) {
+// Only parse .env READERS when not using SQL as the source
+if (source !== 'sql' && process.env.READERS) {
   try {
     const parsed = JSON.parse(process.env.READERS) as ReaderConfig[];
     envReaders.splice(0, envReaders.length, ...parsed);
@@ -15,20 +15,23 @@ if (process.env.READERS) {
   }
 }
 
+// Shared mutable reference — updated by loadReaders(), consumed by route handlers and ISAPI service
+export let activeReaders: ReaderConfig[] = envReaders;
+
 /**
  * Load readers based on READERS_SOURCE env var.
  * - "sql": load from SQL stored procedure (falls back to .env on failure)
  * - "env" or unset: load from READERS env variable
  */
 export async function loadReaders(): Promise<ReaderConfig[]> {
-  const source = process.env.READERS_SOURCE?.toLowerCase();
-
   if (source === 'sql') {
     try {
       const readers = await sqlService.getReaders();
+      activeReaders = readers;
       logger.info({ source: 'sql', count: readers.length }, 'Readers loaded from SQL Server');
       return readers;
     } catch (error) {
+      activeReaders = envReaders;
       logger.warn({
         source: 'env',
         count: envReaders.length,
@@ -38,8 +41,7 @@ export async function loadReaders(): Promise<ReaderConfig[]> {
     }
   }
 
+  activeReaders = envReaders;
   logger.info({ source: 'env', count: envReaders.length }, 'Readers loaded from .env configuration');
   return envReaders;
 }
-
-export default envReaders;

@@ -137,7 +137,21 @@ export class SqlService {
     const result = await request.execute('dbo.DC_chronos_sp_get_line_logger_mapping');
 
     // Parse JSON OUTPUT
-    const response: SqlReadersResponse = JSON.parse(result.output.result);
+    let response: SqlReadersResponse;
+    try {
+      response = JSON.parse(result.output.result);
+    } catch (parseError) {
+      logger.error({
+        rawResult: result.output.result,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      }, 'Failed to parse readers stored procedure response as JSON');
+      throw new Error('Invalid JSON response from readers stored procedure');
+    }
+
+    if (!response || typeof response !== 'object' || !Array.isArray(response.data)) {
+      logger.error({ sqlResponse: response }, 'Readers stored procedure returned unexpected shape');
+      throw new Error('Readers stored procedure response missing expected data array');
+    }
 
     if (!response.success) {
       logger.error({

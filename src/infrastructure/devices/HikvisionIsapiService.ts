@@ -1,6 +1,6 @@
 import DigestFetch from 'digest-fetch';
 import { config } from '../../config/index.js';
-import readers from '../../config/readers.js';
+import { activeReaders as readers } from '../../config/readers.js';
 import { logger } from '../logging/logger.js';
 import { HttpError } from '../../api/middleware/errorHandler.js';
 import type {
