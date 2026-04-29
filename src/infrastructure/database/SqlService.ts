@@ -182,9 +182,7 @@ export class SqlService {
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute(
-      'dbo.DC_chronos_sp_get_sessions_data_detailed'
-    );
+    const result = await request.execute('dbo.DC_chronos_sp_get_sessions_data_detailed');
 
     let response: SessionsDataDetailedResponse;
     try {
