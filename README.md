@@ -169,6 +169,30 @@ GET /readers/:name             # Single reader status
 GET /readers?online=false      # Filter by status
 ```
 
+### Persons (Access Control)
+
+All write endpoints support `readerName: "all"` to fan out the operation to every configured reader.
+
+```
+POST /persons                    # Create person on device(s)
+POST /persons/search             # Search persons on a device
+POST /persons/details            # Get person + card data combined
+POST /persons/with-card          # Create person + card in one call
+PUT  /persons                    # Modify person on device(s)
+PUT  /persons/delete             # Delete person(s) from device(s)
+```
+
+### Cards (Access Control)
+
+All write endpoints support `readerName: "all"` to fan out the operation to every configured reader.
+
+```
+POST /cards                      # Create card on device(s)
+POST /cards/search               # Search cards on a device
+PUT  /cards                      # Replace card for a user (delete + create)
+PUT  /cards/delete               # Delete card(s) from device(s)
+```
+
 ### Buffer
 
 ```
@@ -197,12 +221,37 @@ curl http://localhost:4000/events \
 # Get offline readers
 curl http://localhost:4000/readers?online=false \
   -H "Authorization: Bearer <token>"
+
+# Create person + card on all readers
+curl -X POST http://localhost:4000/persons/with-card \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "readerName": "all",
+    "employeeNo": "7628",
+    "name": "John Doe",
+    "cardNo": "1234567890"
+  }'
+
+# Search person + card details
+curl -X POST http://localhost:4000/persons/details \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"readerName": "308", "employeeNoList": ["7628"]}'
+
+# Delete person from all readers
+curl -X PUT http://localhost:4000/persons/delete \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"readerName": "all", "employeeNoList": ["7628"]}'
 ```
 
 ## Key Features
 
 - **Real-time streaming** — Persistent HTTP connections via ISAPI `/Event/notification/alertStream`
-- **Automatic reconnection** — 3-second retry on connection failures, no events lost
+- **Automatic reconnection** — 3-second retry on connection failures, 60s backoff on auth errors
+- **Access control management** — Create, modify, delete persons and cards on devices via ISAPI
+- **Fan-out to all readers** — Use `readerName: "all"` to apply changes across all devices at once
 - **Event buffering** — In-memory buffer with batch insertion to SQL Server
 - **LDAP authentication** — Validates credentials against Active Directory
 - **JWT authorization** — Token-based API access with 24h expiration
@@ -210,7 +259,7 @@ curl http://localhost:4000/readers?online=false \
 - **Multi-reader support** — Monitors 20-30+ readers concurrently
 - **Email alerts** — Notifications when readers go offline or errors occur
 - **Structured logging** — JSON logs via Pino for production observability
-- **Request validation** — Zod schemas for all API inputs
+- **Request validation** — Zod schemas with defaults for all API inputs
 
 ## Event Data
 
