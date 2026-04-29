@@ -4,7 +4,7 @@ import { rateLimiter } from '../middleware/rateLimit.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { HikvisionIsapiService } from '../../infrastructure/devices/HikvisionIsapiService.js';
-import readers from '../../config/readers.js';
+import { activeReaders as readers } from '../../config/readers.js';
 import {
   createPersonSchema,
   searchPersonsSchema,
