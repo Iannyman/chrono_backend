@@ -9,6 +9,8 @@ export type {
   Reader,
   ReaderStatusUpdate,
   ReaderConfig,
+  SqlReaderItem,
+  SqlReadersResponse,
 } from './Reader.js';
 
 export type * from './IsapiTypes.js';

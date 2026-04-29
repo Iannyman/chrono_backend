@@ -5,7 +5,7 @@ import { emailService } from './infrastructure/notifications/email.js';
 import { eventBuffer } from './infrastructure/buffer/EventBuffer.js';
 import { sqlService } from './infrastructure/database/SqlService.js';
 import { logger } from './infrastructure/logging/logger.js';
-import readers from './config/readers.js';
+import { loadReaders } from './config/readers.js';
 import type { RecordEvent } from './core/domain/RecordEvent.js';
 
 /**
@@ -16,7 +16,6 @@ async function start(): Promise<void> {
     logger.info({
       port: config.server.port,
       nodeEnv: config.server.nodeEnv,
-      readers: readers.length,
     }, 'Starting Hikvision Card Reader Backend');
 
     // Verify email service (optional, don't fail if not configured)
@@ -38,6 +37,7 @@ async function start(): Promise<void> {
     });
 
     // Start monitoring card readers
+    const readers = await loadReaders();
     await readerMonitoringService.startReaders(readers);
 
     // Log buffer stats every minute
