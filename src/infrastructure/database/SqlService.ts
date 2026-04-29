@@ -2,6 +2,7 @@ import sql from 'mssql';
 import { config } from '../../config/index.js';
 import { logger } from '../logging/logger.js';
 import type { RecordEvent } from '../../core/domain/RecordEvent.js';
+import type { SqlReadersResponse, ReaderConfig } from '../../core/domain/index.js';
 import { alertService } from '../../core/services/AlertService.js';
 
 export class SqlService {
@@ -121,6 +122,37 @@ export class SqlService {
     if (failCount > 0) {
       throw new Error(`Batch insert failed: ${failCount}/${events.length} events could not be inserted`);
     }
+  }
+
+  async getReaders(): Promise<ReaderConfig[]> {
+    if (!this.pool) {
+      throw new Error('SQL Server not connected');
+    }
+
+    const request = this.pool.request();
+
+    // Receive JSON from SQL Server
+    request.output('result', sql.NVarChar(sql.MAX));
+
+    const result = await request.execute('dbo.DC_chronos_sp_get_line_logger_mapping');
+
+    // Parse JSON OUTPUT
+    const response: SqlReadersResponse = JSON.parse(result.output.result);
+
+    if (!response.success) {
+      logger.error({
+        sqlResponse: response
+      }, 'Stored procedure returned error');
+
+      throw new Error(response.message ?? 'Stored procedure returned failure');
+    }
+
+    logger.info({
+      readerCount: response.data.length,
+      readers: response.data.map(r => r.name)
+    }, 'Readers loaded from SQL Server');
+
+    return response.data;
   }
 }
 
