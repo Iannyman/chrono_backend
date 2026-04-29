@@ -28,3 +28,20 @@ export interface ReaderConfig {
   ip: string;
   port?: number;
 }
+
+/**
+ * A single reader entry returned from SQL stored procedure
+ */
+export interface SqlReaderItem {
+  name: string;
+  ip: string;
+}
+
+/**
+ * Response envelope from dbo.DC_chronos_sp_get_line_logger_mapping
+ */
+export interface SqlReadersResponse {
+  success: number;
+  data: SqlReaderItem[];
+  message?: string;
+}
