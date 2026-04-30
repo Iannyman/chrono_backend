@@ -11,6 +11,7 @@ import bufferRoutes from './api/routes/buffer.js';
 import logsRoutes from './api/routes/logs.js';
 import personsRoutes from './api/routes/persons.js';
 import cardsRoutes from './api/routes/cards.js';
+import sessionsRoutes from './api/routes/sessions.js';
 
 /**
  * Create and configure Express application
@@ -55,6 +56,7 @@ export function createApp(): express.Express {
   app.use('/logs', logsRoutes);
   app.use('/persons', personsRoutes);
   app.use('/cards', cardsRoutes);
+  app.use('/sessions', sessionsRoutes);
 
   // Root endpoint
   app.get('/', (_req, res) => {

@@ -3,6 +3,7 @@ import { config } from '../../config/index.js';
 import { logger } from '../logging/logger.js';
 import type { RecordEvent } from '../../core/domain/RecordEvent.js';
 import type { SqlReadersResponse, ReaderConfig } from '../../core/domain/index.js';
+import type { SessionsDataDetailedPayload, SessionsDataDetailedResponse } from '../../core/domain/Session.js';
 import { alertService } from '../../core/services/AlertService.js';
 
 export class SqlService {
@@ -167,6 +168,44 @@ export class SqlService {
     }, 'Readers loaded from SQL Server');
 
     return response.data;
+  }
+
+  async getSessionsDataDetailed(
+    payload: SessionsDataDetailedPayload[]
+  ): Promise<SessionsDataDetailedResponse> {
+    if (!this.pool) {
+      throw new Error('SQL Server not connected');
+    }
+
+    const request = this.pool.request();
+
+    request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
+    request.output('result', sql.NVarChar(sql.MAX));
+
+    const result = await request.execute('dbo.DC_chronos_sp_get_sessions_data_detailed');
+
+    let response: SessionsDataDetailedResponse;
+    try {
+      response = JSON.parse(result.output.result);
+    } catch (parseError) {
+      logger.error({
+        rawResult: result.output.result,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      }, 'Failed to parse sessions data detailed SP response as JSON');
+      throw new Error('Invalid JSON response from sessions data detailed SP');
+    }
+
+    if (!response || typeof response !== 'object' || !Array.isArray(response.data)) {
+      logger.error({ sqlResponse: response }, 'Sessions data detailed SP returned unexpected shape');
+      throw new Error('Sessions data detailed SP response missing expected data array');
+    }
+
+    if (!response.success) {
+      logger.error({ sqlResponse: response }, 'Sessions data detailed SP returned error');
+      throw new Error(response.message ?? 'Stored procedure returned failure');
+    }
+
+    return response;
   }
 }
 
