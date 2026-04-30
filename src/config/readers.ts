@@ -42,6 +42,6 @@ export async function loadReaders(): Promise<ReaderConfig[]> {
   }
 
   activeReaders = envReaders;
-  logger.info({ source: 'env', count: envReaders.length }, 'Readers loaded from .env configuration');
+  logger.info({ source: 'env', count: envReaders.length, readers:envReaders }, 'Readers loaded from .env configuration');
   return envReaders;
 }
