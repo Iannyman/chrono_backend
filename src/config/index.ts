@@ -25,7 +25,7 @@ interface EmailConfig {
 
 interface SecurityConfig {
   jwtSecret: string;
-  jwtExpiresIn: string;
+  jwtExpiresIn: number;
   apiRateLimit: number;
 }
 
@@ -94,7 +94,7 @@ function getSecurityConfig(): SecurityConfig {
 
   return {
     jwtSecret,
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
+    jwtExpiresIn: parseInt(process.env.JWT_EXPIRES_IN || '8600', 10),
     apiRateLimit: parseInt(process.env.API_RATE_LIMIT || '100', 10),
   };
 }
