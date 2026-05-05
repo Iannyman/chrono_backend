@@ -139,6 +139,39 @@ router.post('/with-card',
   })
 );
 
+// // POST /persons/details - Get person + card data combined
+// router.post('/details',
+//   rateLimiter,
+//   validateBody(personDetailsSchema),
+//   asyncHandler(async (req: AuthenticatedRequest, res) => {
+//     const { readerName, employeeNoList } = req.body;
+
+//     const isapi = HikvisionIsapiService.forReader(readerName);
+//     const empList = employeeNoList.map((no: string) => ({ employeeNo: no }));
+
+//     const [persons, cards] = await Promise.all([
+//       isapi.searchPersons({
+//         UserInfoSearchCond: {
+//           searchID: `search-${Date.now()}`,
+//           searchResultPosition: 0,
+//           maxResults: 100,
+//           EmployeeNoList: empList,
+//         },
+//       }),
+//       isapi.searchCards({
+//         CardInfoSearchCond: {
+//           searchID: `search-${Date.now()}`,
+//           searchResultPosition: 0,
+//           maxResults: 100,
+//           EmployeeNoList: empList,
+//         },
+//       }),
+//     ]);
+
+//     res.json({ data: { persons, cards } });
+//   })
+// );
+
 // POST /persons/details - Get person + card data combined
 router.post('/details',
   rateLimiter,
@@ -149,28 +182,28 @@ router.post('/details',
     const isapi = HikvisionIsapiService.forReader(readerName);
     const empList = employeeNoList.map((no: string) => ({ employeeNo: no }));
 
-    const [persons, cards] = await Promise.all([
-      isapi.searchPersons({
-        UserInfoSearchCond: {
-          searchID: `search-${Date.now()}`,
-          searchResultPosition: 0,
-          maxResults: 100,
-          EmployeeNoList: empList,
-        },
-      }),
-      isapi.searchCards({
-        CardInfoSearchCond: {
-          searchID: `search-${Date.now()}`,
-          searchResultPosition: 0,
-          maxResults: 100,
-          EmployeeNoList: empList,
-        },
-      }),
-    ]);
+    const persons = await isapi.searchPersons({
+      UserInfoSearchCond: {
+        searchID: `search-${Date.now()}`,
+        searchResultPosition: 0,
+        maxResults: 100,
+        EmployeeNoList: empList,
+      },
+    });
+
+    const cards = await isapi.searchCards({
+      CardInfoSearchCond: {
+        searchID: `search-${Date.now()}`,
+        searchResultPosition: 0,
+        maxResults: 100,
+        EmployeeNoList: empList,
+      },
+    });
 
     res.json({ data: { persons, cards } });
   })
 );
+
 
 // PUT /persons/delete - Delete person(s) on Hikvision device(s)
 router.put('/delete',
