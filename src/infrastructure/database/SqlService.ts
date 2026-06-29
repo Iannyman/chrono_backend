@@ -164,8 +164,9 @@ export class SqlService {
 
     logger.info({
       readerCount: response.data.length,
-      readers: response.data.map(r => r.name)
+      readers: response.data.map(r => `${r.name} - ${r.ip}`)
     }, 'Readers loaded from SQL Server');
+
 
     return response.data;
   }
