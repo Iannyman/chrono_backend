@@ -51,6 +51,10 @@ export const personDetailsSchema = z.object({
   employeeNoList: z.array(z.string().min(1)).min(1),
 });
 
+const now = new Date();
+const beginTime = `${now.getFullYear()}-01-01T00:00:00`;
+const endTime = `${now.getFullYear() + 20}-12-31T23:59:59`;
+
 export const createPersonWithCardSchema = z.object({
   readerName: z.string().min(1),
   employeeNo: z.string().min(1),
@@ -60,9 +64,9 @@ export const createPersonWithCardSchema = z.object({
   cardType: z.string().default('normalCard'),
   valid: z.object({
     enable: z.boolean().default(true),
-    beginTime: z.string().default('2020-01-01T00:00:00'),
-    endTime: z.string().default('2030-12-31T23:59:59'),
-  }).default({ enable: true, beginTime: '2020-01-01T00:00:00', endTime: '2030-12-31T23:59:59' }),
+    beginTime: z.string().default(beginTime),
+    endTime: z.string().default(endTime),
+  }).default({ enable: true, beginTime: beginTime, endTime: endTime }),
   doorRight: z.string().default('1'),
   rightPlan: z.array(z.object({
     doorNo: z.number(),
