@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimit.js';
 import { validateBody } from '../middleware/validateRequest.js';
@@ -12,7 +14,12 @@ import {
   deletePersonSchema,
   personDetailsSchema,
   createPersonWithCardSchema,
+  importPersonsSchema,
+  employeeEntrySchema,
+  type CreatePersonWithCardInput,
+  type EmployeeEntry,
 } from '../validators/person.schema.js';
+import type { IsapiResponse } from '../../core/domain/IsapiTypes.js';
 
 const router = Router();
 
@@ -38,6 +45,71 @@ async function fanOut<T>(
     }
   }
   return results;
+}
+
+/**
+ * Run an async mapper over `items` with at most `concurrency` in flight at once.
+ * Results are returned in input order. A dependency-free alternative to p-limit
+ * for bounding load on the devices during bulk imports.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index], index);
+    }
+  };
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
+type PersonWithCardParams = Omit<CreatePersonWithCardInput, 'readerName'>;
+type PersonWithCardResult = { person: IsapiResponse; card: IsapiResponse };
+
+/**
+ * Create a person and their card on a single device.
+ * Extracted from /with-card so the same logic is reused by /import-persons.
+ */
+async function createPersonWithCard(
+  isapi: HikvisionIsapiService,
+  params: PersonWithCardParams,
+): Promise<PersonWithCardResult> {
+  const person = await isapi.createPerson({
+    UserInfo: {
+      employeeNo: params.employeeNo,
+      name: params.name,
+      userType: params.userType,
+      ...(params.valid && { Valid: params.valid }),
+      ...(params.doorRight && { doorRight: params.doorRight }),
+      ...(params.rightPlan && { RightPlan: params.rightPlan }),
+    },
+  });
+  const card = await isapi.createCard({
+    CardInfo: {
+      employeeNo: params.employeeNo,
+      cardNo: params.cardNo,
+      cardType: params.cardType,
+    },
+  });
+  return { person, card };
+}
+
+/**
+ * Read and validate the employee.json file. `filePath` is resolved relative
+ * to the current working directory unless it is already absolute.
+ */
+async function readEmployees(filePath: string): Promise<EmployeeEntry[]> {
+  const absolutePath = path.resolve(process.cwd(), filePath);
+  const content = await readFile(absolutePath, 'utf-8');
+  const parsed: unknown = JSON.parse(content);
+  return employeeEntrySchema.array().parse(parsed);
 }
 
 // POST /persons - Create a person on Hikvision device(s)
@@ -116,23 +188,43 @@ router.post('/with-card',
   rateLimiter,
   validateBody(createPersonWithCardSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const { readerName, employeeNo, name, cardNo, userType, cardType, valid, doorRight, rightPlan } = req.body;
+    const { readerName, ...params } = req.body;
 
-    const results = await fanOut(readerName, async (isapi) => {
-      const person = await isapi.createPerson({
-        UserInfo: {
-          employeeNo,
-          name,
-          userType,
-          ...(valid && { Valid: valid }),
-          ...(doorRight && { doorRight }),
-          ...(rightPlan && { RightPlan: rightPlan }),
-        },
+    const results = await fanOut(readerName, (isapi) =>
+      createPersonWithCard(isapi, params),
+    );
+
+    res.status(201).json({ data: results });
+  })
+);
+
+// POST /persons/import-persons - Import persons + cards from an employee.json file
+router.post('/import-persons',
+  rateLimiter,
+  validateBody(importPersonsSchema),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const { readerName, filePath, concurrency: explicitConcurrency } = req.body;
+
+    const employees = await readEmployees(filePath);
+
+    // Default to one slot per target reader so each device sees ~1 concurrent
+    // request (full utilization without contention). Result order still matches
+    // employee.json order.
+    const concurrency = explicitConcurrency ?? resolveReaders(readerName).length;
+
+    const results = await mapWithConcurrency(employees, concurrency, async (emp) => {
+      // Marca -> employeeNo, Nume + Prenume -> name, CodCartela -> cardNo.
+      // Remaining UserInfo/CardInfo fields keep their validator defaults.
+      const params = createPersonWithCardSchema.parse({
+        readerName,
+        employeeNo: emp.Marca,
+        name: `${emp.Nume} ${emp.Prenume}`,
+        cardNo: emp.CodCartela,
       });
-      const card = await isapi.createCard({
-        CardInfo: { employeeNo, cardNo, cardType },
-      });
-      return { person, card };
+      const result = await fanOut(readerName, (isapi) =>
+        createPersonWithCard(isapi, params),
+      );
+      return { employeeNo: params.employeeNo, result };
     });
 
     res.status(201).json({ data: results });

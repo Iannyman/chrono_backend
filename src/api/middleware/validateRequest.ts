@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { ZodTypeAny, ZodError } from 'zod';
 import { HttpError } from './errorHandler.js';
 
 /**
@@ -8,7 +8,7 @@ import { HttpError } from './errorHandler.js';
  * @param target - Which part of request to validate ('body', 'query', 'params')
  */
 export function validateRequest(
-  schema: AnyZodObject,
+  schema: ZodTypeAny,
   target: 'body' | 'query' | 'params' = 'body'
 ) {
   return (req: Request, _res: Response, next: NextFunction) => {
@@ -31,20 +31,20 @@ export function validateRequest(
 /**
  * Middleware to validate request body
  */
-export function validateBody(schema: AnyZodObject) {
+export function validateBody(schema: ZodTypeAny) {
   return validateRequest(schema, 'body');
 }
 
 /**
  * Middleware to validate request query parameters
  */
-export function validateQuery(schema: AnyZodObject) {
+export function validateQuery(schema: ZodTypeAny) {
   return validateRequest(schema, 'query');
 }
 
 /**
  * Middleware to validate request params
  */
-export function validateParams(schema: AnyZodObject) {
+export function validateParams(schema: ZodTypeAny) {
   return validateRequest(schema, 'params');
 }
