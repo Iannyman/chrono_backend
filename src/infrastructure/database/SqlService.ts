@@ -93,6 +93,45 @@ export class SqlService {
   }
 
 
+  /**
+   * Persist a scanned/registered worker via dbo.DC_chronos_insert_scanned_worker_id.
+   * Mirrors the payload contract used by the VB.NET InsertScannedWorker client:
+   * person_id, first_name, last_name, card_no (all strings) sent as JSON @payload.
+   * Throws if the stored procedure reports failure.
+   */
+  async insertScannedWorker(worker: {
+    person_id: string;
+    first_name: string;
+    last_name: string;
+    card_no: string;
+  }): Promise<{ success: boolean; message?: string }> {
+    if (!this.pool) {
+      throw new Error('SQL Server not connected');
+    }
+
+    const payload = {
+      person_id: worker.person_id,
+      first_name: worker.first_name,
+      last_name: worker.last_name,
+      card_no: worker.card_no,
+    };
+
+    const request = this.pool.request();
+    request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
+    request.output('result', sql.NVarChar(sql.MAX));
+
+    const result = await request.execute('dbo.DC_chronos_insert_scanned_worker_id');
+
+    const response = JSON.parse(result.output.result) as { success: unknown; message?: string };
+
+    if (!response.success) {
+      logger.error({ personId: worker.person_id, sqlResponse: response }, 'Stored procedure returned error');
+      throw new Error(response.message ?? 'Stored procedure returned failure');
+    }
+
+    return { success: true, message: response.message };
+  }
+
   async insertBatch(events: RecordEvent[]): Promise<void> {
     logger.info({ count: events.length }, 'Inserting batch of events to SQL Server');
 

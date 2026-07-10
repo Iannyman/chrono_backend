@@ -6,6 +6,8 @@ import { rateLimiter } from '../middleware/rateLimit.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { HikvisionIsapiService } from '../../infrastructure/devices/HikvisionIsapiService.js';
+import { sqlService } from '../../infrastructure/database/SqlService.js';
+import { logger } from '../../infrastructure/logging/logger.js';
 import { activeReaders as readers } from '../../config/readers.js';
 import {
   createPersonSchema,
@@ -41,7 +43,9 @@ async function fanOut<T>(
       const isapi = HikvisionIsapiService.forReader(name);
       results[name] = await fn(isapi);
     } catch (err) {
-      results[name] = { error: err instanceof Error ? err.message : String(err) } as T;
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn({ reader: name, error: message }, 'Reader operation failed');
+      results[name] = { error: message } as T;
     }
   }
   return results;
@@ -213,6 +217,28 @@ router.post('/import-persons',
     const concurrency = explicitConcurrency ?? resolveReaders(readerName).length;
 
     const results = await mapWithConcurrency(employees, concurrency, async (emp) => {
+      // SQL is the canonical record: persist first, then push to the devices.
+      // Payload mirrors the VB.NET InsertScannedWorker contract:
+      // Marca -> person_id, Prenume -> first_name, Nume -> last_name, CodCartela -> card_no.
+      let sql: { success: boolean; message?: string };
+      try {
+        sql = await sqlService.insertScannedWorker({
+          person_id: emp.Marca,
+          first_name: emp.Prenume,
+          last_name: emp.Nume,
+          card_no: emp.CodCartela,
+        });
+      } catch (error) {
+        sql = { success: false, message: error instanceof Error ? error.message : String(error) };
+      }
+
+      // Skip the device push if SQL failed so a person never lands on hardware
+      // without a matching canonical record. The batch continues regardless.
+      if (!sql.success) {
+        logger.warn({ employeeNo: emp.Marca, sql }, 'Skipping device push: SQL insert failed');
+        return { employeeNo: emp.Marca, sql, device: undefined };
+      }
+
       // Marca -> employeeNo, Nume + Prenume -> name, CodCartela -> cardNo.
       // Remaining UserInfo/CardInfo fields keep their validator defaults.
       const params = createPersonWithCardSchema.parse({
@@ -221,10 +247,10 @@ router.post('/import-persons',
         name: `${emp.Nume} ${emp.Prenume}`,
         cardNo: emp.CodCartela,
       });
-      const result = await fanOut(readerName, (isapi) =>
+      const device = await fanOut(readerName, (isapi) =>
         createPersonWithCard(isapi, params),
       );
-      return { employeeNo: params.employeeNo, result };
+      return { employeeNo: params.employeeNo, sql, device };
     });
 
     res.status(201).json({ data: results });

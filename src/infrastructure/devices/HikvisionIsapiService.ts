@@ -97,6 +97,10 @@ export class HikvisionIsapiService {
     if (!response.ok) {
       const text = await response.text();
 
+      // Non-200 from the device: log it so failures are traceable in ./logs even
+      // though we still return the body to the caller (same shape as a success).
+      logger.warn({ reader: this.readerName, method, path, status: response.status, body: text }, 'ISAPI request returned non-200');
+
       // Try to parse as JSON — return device error in same format as success
       try {
         return JSON.parse(text) as IsapiResponse;
