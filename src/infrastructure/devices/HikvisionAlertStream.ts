@@ -117,7 +117,25 @@ export class HikvisionAlertStream {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // On 401 the device returns an XML_ResponseStatus_AuthenticationFailed body
+      // (ISAPI docs §16.2.254) carrying the real reason: lockStatus (unlock/locked),
+      // retryTimes (remaining attempts) and resLockTime (remaining lock seconds).
+      // Read and surface it so a wrong password is distinguishable from a locked account.
+      const body = await response.text().catch(() => '<body unreadable>');
+      const detail = this.extractAuthFailureDetail(body);
+
+      logger.error({
+        reader: this.readerName,
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type') ?? '',
+        wwwAuthenticate: response.headers.get('www-authenticate') ?? '',
+        authDetail: detail,
+        body,
+      }, 'Alert stream rejected by device');
+
+      // Keep "HTTP 401" in the message so the lockout backoff in listen() still triggers.
+      throw new Error(`HTTP ${response.status}: ${detail ?? response.statusText}`);
     }
 
     // Extract boundary from Content-Type header
@@ -133,6 +151,32 @@ export class HikvisionAlertStream {
     logger.info({ reader: this.readerName, boundary }, 'Connected to device alert stream');
 
     await this.processStream(response.body, boundary);
+  }
+
+  /**
+   * Parse a Hikvision XML_ResponseStatus_AuthenticationFailed body into a readable
+   * detail string (statusString, lockStatus, retryTimes, resLockTime). Returns null
+   * for empty / non-XML bodies.
+   */
+  private extractAuthFailureDetail(body: string): string | null {
+    if (!body) return null;
+    const pick = (tag: string) =>
+      body.match(new RegExp(`<${tag}>([^<]*)</${tag}>`, 'i'))?.[1].trim();
+
+    const statusCode = pick('statusCode');
+    const statusString = pick('statusString');
+    const lockStatus = pick('lockStatus');
+    const retryTimes = pick('retryTimes');
+    const resLockTime = pick('resLockTime');
+
+    const parts: string[] = [];
+    if (statusCode) parts.push(`code ${statusCode}`);
+    if (statusString) parts.push(statusString);
+    if (lockStatus) parts.push(`lock=${lockStatus}`);
+    if (retryTimes) parts.push(`retriesLeft=${retryTimes}`);
+    if (resLockTime) parts.push(`lockTime=${resLockTime}s`);
+
+    return parts.length ? parts.join(', ') : null;
   }
 
   /**
