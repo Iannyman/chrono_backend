@@ -4,3 +4,4 @@ logs/
 *.log
 .env
 .env.*
+employee.json

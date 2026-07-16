@@ -211,16 +211,16 @@ router.post('/import-persons',
 
     const employees = await readEmployees(filePath);
 
-    // Default to one slot per target reader so each device sees ~1 concurrent
-    // request (full utilization without contention). Result order still matches
-    // employee.json order.
-    const concurrency = explicitConcurrency ?? resolveReaders(readerName).length;
+    // Process strictly one employee at a time so a reader never sees concurrent
+    // digest-auth handshakes (which invalidate each other's nonces and trip the
+    // device's account lockout). Callers may still override via the request body.
+    const concurrency = explicitConcurrency ?? 1;
 
     const results = await mapWithConcurrency(employees, concurrency, async (emp) => {
       // SQL is the canonical record: persist first, then push to the devices.
       // Payload mirrors the VB.NET InsertScannedWorker contract:
       // Marca -> person_id, Prenume -> first_name, Nume -> last_name, CodCartela -> card_no.
-      let sql: { success: boolean; message?: string };
+      let sql: { success: boolean; alreadyExists: boolean; message?: string };
       try {
         sql = await sqlService.insertScannedWorker({
           person_id: emp.Marca,
@@ -229,14 +229,24 @@ router.post('/import-persons',
           card_no: emp.CodCartela,
         });
       } catch (error) {
-        sql = { success: false, message: error instanceof Error ? error.message : String(error) };
+        sql = {
+          success: false,
+          alreadyExists: false,
+          message: error instanceof Error ? error.message : String(error),
+        };
       }
 
-      // Skip the device push if SQL failed so a person never lands on hardware
-      // without a matching canonical record. The batch continues regardless.
+      // Skip the device push only on a genuine SQL failure (connection / execute
+      // error), so a person never lands on hardware without a canonical record.
+      // "Already exists" is NOT a failure — the record is already in SQL — so we
+      // still push to the device. Remove this block to push unconditionally.
       if (!sql.success) {
         logger.warn({ employeeNo: emp.Marca, sql }, 'Skipping device push: SQL insert failed');
         return { employeeNo: emp.Marca, sql, device: undefined };
+      }
+
+      if (sql.alreadyExists) {
+        logger.info({ employeeNo: emp.Marca }, 'Person already in SQL — pushing to device');
       }
 
       // Marca -> employeeNo, Nume + Prenume -> name, CodCartela -> cardNo.

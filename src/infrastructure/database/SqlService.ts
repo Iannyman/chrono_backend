@@ -97,14 +97,19 @@ export class SqlService {
    * Persist a scanned/registered worker via dbo.DC_chronos_insert_scanned_worker_id.
    * Mirrors the payload contract used by the VB.NET InsertScannedWorker client:
    * person_id, first_name, last_name, card_no (all strings) sent as JSON @payload.
-   * Throws if the stored procedure reports failure.
+   *
+   * The stored procedure returns success as 0/1, which we normalize to a boolean:
+   *  - success:1                       -> freshly inserted (success: true)
+   *  - success:0 + "already defined"   -> idempotent success (success: true, alreadyExists: true)
+   *  - success:0 (anything else)       -> genuine failure (success: false)
+   * Only infrastructure problems (no connection, or execute() throws) reject/throw.
    */
   async insertScannedWorker(worker: {
     person_id: string;
     first_name: string;
     last_name: string;
     card_no: string;
-  }): Promise<{ success: boolean; message?: string }> {
+  }): Promise<{ success: boolean; alreadyExists: boolean; message?: string }> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -124,12 +129,20 @@ export class SqlService {
 
     const response = JSON.parse(result.output.result) as { success: unknown; message?: string };
 
-    if (!response.success) {
+    // "Person data already defined" is an idempotent success — the person is
+    // already in the canonical record — so surface it as alreadyExists rather
+    // than treating it as a failure.
+    const alreadyExists =
+      !response.success &&
+      typeof response.message === 'string' &&
+      /already defined/i.test(response.message);
+
+    if (!response.success && !alreadyExists) {
       logger.error({ personId: worker.person_id, sqlResponse: response }, 'Stored procedure returned error');
-      throw new Error(response.message ?? 'Stored procedure returned failure');
+      return { success: false, alreadyExists: false, message: response.message };
     }
 
-    return { success: true, message: response.message };
+    return { success: true, alreadyExists, message: response.message };
   }
 
   async insertBatch(events: RecordEvent[]): Promise<void> {
