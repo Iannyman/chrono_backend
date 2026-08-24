@@ -10,3 +10,13 @@ export interface SessionsDataDetailedResponse {
   data: unknown[];
   message?: string;
 }
+
+export interface SessionsDataLivePayload {
+  line_id: string;
+}
+
+export interface SessionsDataLiveResponse {
+  success: number;
+  data: unknown[];
+  message?: string;
+}

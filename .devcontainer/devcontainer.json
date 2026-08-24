@@ -12,6 +12,7 @@
   ],
   "runArgs": [
     "--name=dev-${localWorkspaceFolderBasename}",
+    "--network=chrono",
     "--publish", "5000:4000",
     "--env", "TZ=Europe/Bucharest"
   ],
