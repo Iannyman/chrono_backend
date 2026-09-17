@@ -4,7 +4,7 @@ import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimit.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { sessionsDataDetailedSchema, sessionsDataLiveSchema } from '../validators/session.schema.js';
+import { sessionsDataDetailedSchema, sessionsDataEditSchema, sessionsDataLiveSchema } from '../validators/session.schema.js';
 
 const router = Router();
 
@@ -34,4 +34,19 @@ router.post('/live',
   })
 );
 
+// POST /sessions/edit - Edit a session
+router.post('/edit',
+  rateLimiter,
+  validateBody(sessionsDataEditSchema),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+    const payload = [req.body];
+    // const result = await sqlService.editSessionData(payload);
+
+    // res.json(result);
+    res.json({
+      "success": 1,
+      "data": []
+    })
+  })
+);
 export default router;

@@ -5,17 +5,18 @@ export interface SessionsDataDetailedPayload {
   person_id: string;
 }
 
-export interface SessionsDataDetailedResponse {
-  success: number;
-  data: unknown[];
-  message?: string;
+export interface SessionsDataEditPayload {
+  from: string;
+  to: string;
+  line_id: string;
+  log_id: string;
 }
 
 export interface SessionsDataLivePayload {
   line_id: string;
 }
 
-export interface SessionsDataLiveResponse {
+export interface SessionsResponse {
   success: number;
   data: unknown[];
   message?: string;
