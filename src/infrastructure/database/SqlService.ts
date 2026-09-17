@@ -3,7 +3,7 @@ import { config } from '../../config/index.js';
 import { logger } from '../logging/logger.js';
 import type { RecordEvent } from '../../core/domain/RecordEvent.js';
 import type { SqlReadersResponse, ReaderConfig } from '../../core/domain/index.js';
-import type { SessionsDataDetailedPayload, SessionsDataDetailedResponse, SessionsDataLivePayload ,SessionsDataLiveResponse } from '../../core/domain/Session.js';
+import type { SessionsDataDetailedPayload, SessionsDataEditPayload, SessionsDataLivePayload, SessionsResponse} from '../../core/domain/Session.js';
 import { alertService } from '../../core/services/AlertService.js';
 
 export class SqlService {
@@ -79,7 +79,7 @@ export class SqlService {
       }, 'Stored procedure returned error');
 
       // Send email alert
-      alertService.sendSystemAlert(response.message , 'SQL Event');
+      alertService.sendSystemAlert(response.message, 'SQL Event');
 
       throw new Error(response.message ?? 'Stored procedure returned failure');
     } else {
@@ -225,7 +225,7 @@ export class SqlService {
 
   async getSessionsDataDetailed(
     payload: SessionsDataDetailedPayload[]
-  ): Promise<SessionsDataDetailedResponse> {
+  ): Promise<SessionsResponse> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -237,7 +237,7 @@ export class SqlService {
 
     const result = await request.execute('dbo.DC_chronos_sp_get_sessions_data_detailed');
 
-    let response: SessionsDataDetailedResponse;
+    let response: SessionsResponse;
     try {
       response = JSON.parse(result.output.result);
     } catch (parseError) {
@@ -261,9 +261,9 @@ export class SqlService {
     return response;
   }
 
-    async getSessionsDataLive(
+  async getSessionsDataLive(
     payload: SessionsDataLivePayload[]
-  ): Promise<SessionsDataLiveResponse> {
+  ): Promise<SessionsResponse> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -275,7 +275,7 @@ export class SqlService {
 
     const result = await request.execute('dbo.DC_chronos_sp_get_currently_open_sessions');
 
-    let response: SessionsDataLiveResponse;
+    let response: SessionsResponse;
     try {
       response = JSON.parse(result.output.result);
     } catch (parseError) {
@@ -293,6 +293,44 @@ export class SqlService {
 
     if (!response.success) {
       logger.error({ sqlResponse: response }, 'Sessions data live SP returned error');
+      throw new Error(response.message ?? 'Stored procedure returned failure');
+    }
+
+    return response;
+  }
+
+  async editSessionData(
+    payload: SessionsDataEditPayload[]
+  ): Promise<SessionsResponse> {
+    if (!this.pool) {
+      throw new Error('SQL Server not connected');
+    }
+
+    const request = this.pool.request();
+
+    request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
+    request.output('result', sql.NVarChar(sql.MAX));
+
+    const result = await request.execute('dbo.DC_chronos_edit_session');
+
+    let response: SessionsResponse;
+    try {
+      response = JSON.parse(result.output.result);
+    } catch (parseError) {
+      logger.error({
+        rawResult: result.output.result,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      }, 'Failed to parse sessions data edit SP response as JSON');
+      throw new Error('Invalid JSON response from sessions data edit SP');
+    }
+
+    if (!response || typeof response !== 'object' || !Array.isArray(response.data)) {
+      logger.error({ sqlResponse: response }, 'Sessions data edit SP returned unexpected shape');
+      throw new Error('Sessions data edit SP response missing expected data array');
+    }
+
+    if (!response.success) {
+      logger.error({ sqlResponse: response }, 'Sessions data edit SP returned error');
       throw new Error(response.message ?? 'Stored procedure returned failure');
     }
 
