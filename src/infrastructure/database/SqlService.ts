@@ -65,7 +65,7 @@ export class SqlService {
     // Receive JSON from SQL Server
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute('dbo.DC_chronos_sp_insert_chronos_login');
+    const result = await request.execute('dbo.DC_sp_chrono_insert_login');
 
     // Parse JSON OUTPUT
     const response = JSON.parse(result.output.result);
@@ -94,7 +94,7 @@ export class SqlService {
 
 
   /**
-   * Persist a scanned/registered worker via dbo.DC_chronos_insert_scanned_worker_id.
+   * Persist a scanned/registered worker via dbo.DC_sp_chrono_insert_scanned_worker_id.
    * Mirrors the payload contract used by the VB.NET InsertScannedWorker client:
    * person_id, first_name, last_name, card_no (all strings) sent as JSON @payload.
    *
@@ -125,7 +125,7 @@ export class SqlService {
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute('dbo.DC_chronos_insert_scanned_worker_id');
+    const result = await request.execute('dbo.DC_sp_chrono_insert_scanned_worker_id');
 
     const response = JSON.parse(result.output.result) as { success: unknown; message?: string };
 
@@ -187,7 +187,7 @@ export class SqlService {
     // Receive JSON from SQL Server
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute('dbo.DC_chronos_sp_get_line_logger_mapping');
+    const result = await request.execute('dbo.DC_sp_chrono_get_line_logger_mapping');
 
     // Parse JSON OUTPUT
     let response: SqlReadersResponse;
@@ -235,7 +235,7 @@ export class SqlService {
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute('dbo.DC_chronos_sp_get_sessions_data_detailed');
+    const result = await request.execute('dbo.DC_sp_chrono_get_sessions_data_detailed');
 
     let response: SessionsResponse;
     try {
@@ -273,7 +273,7 @@ export class SqlService {
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute('dbo.DC_chronos_sp_get_currently_open_sessions');
+    const result = await request.execute('dbo.DC_sp_chrono_get_currently_open_sessions');
 
     let response: SessionsResponse;
     try {
@@ -311,7 +311,7 @@ export class SqlService {
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
-    const result = await request.execute('dbo.DC_chronos_edit_session');
+    const result = await request.execute('dbo.DC_sp_chrono_edit_session');
 
     let response: SessionsResponse;
     try {
