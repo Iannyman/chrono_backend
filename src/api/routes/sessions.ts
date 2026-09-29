@@ -40,13 +40,9 @@ router.post('/edit',
   validateBody(sessionsDataEditSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
     const payload = [req.body];
-    // const result = await sqlService.editSessionData(payload);
+    const result = await sqlService.editSessionData(payload);
 
-    // res.json(result);
-    res.json({
-      "success": 1,
-      "data": []
-    })
+    res.json(result);
   })
 );
 export default router;
