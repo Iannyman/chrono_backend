@@ -6,10 +6,11 @@ export interface SessionsDataDetailedPayload {
 }
 
 export interface SessionsDataEditPayload {
-  from: string;
-  to: string;
+  login_timestamp: string;
+  logout_timestamp: string;
   line_id: string;
   log_id: string;
+  username: string;
 }
 
 export interface SessionsDataLivePayload {
