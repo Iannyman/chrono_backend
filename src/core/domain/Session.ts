@@ -19,6 +19,6 @@ export interface SessionsDataLivePayload {
 
 export interface SessionsResponse {
   success: number;
-  data: unknown[];
+  data?: unknown[];
   message?: string;
 }

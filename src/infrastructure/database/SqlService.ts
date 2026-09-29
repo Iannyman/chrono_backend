@@ -269,7 +269,7 @@ export class SqlService {
     }
 
     const request = this.pool.request();
-
+    console.log(payload);
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
@@ -307,7 +307,7 @@ export class SqlService {
     }
 
     const request = this.pool.request();
-
+    console.log(payload);
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
@@ -322,11 +322,6 @@ export class SqlService {
         error: parseError instanceof Error ? parseError.message : String(parseError),
       }, 'Failed to parse sessions data edit SP response as JSON');
       throw new Error('Invalid JSON response from sessions data edit SP');
-    }
-
-    if (!response || typeof response !== 'object' || !Array.isArray(response.data)) {
-      logger.error({ sqlResponse: response }, 'Sessions data edit SP returned unexpected shape');
-      throw new Error('Sessions data edit SP response missing expected data array');
     }
 
     if (!response.success) {
