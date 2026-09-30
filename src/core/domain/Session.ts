@@ -13,6 +13,11 @@ export interface SessionsDataEditPayload {
   username: string;
 }
 
+export interface SessionsDataDeletePayload {
+  log_id: string;
+  username: string;
+}
+
 export interface SessionsDataLivePayload {
   line_id: string;
 }

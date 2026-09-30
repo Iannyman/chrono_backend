@@ -4,7 +4,7 @@ import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimit.js';
 import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { sessionsDataDetailedSchema, sessionsDataEditSchema, sessionsDataLiveSchema } from '../validators/session.schema.js';
+import { sessionsDataDetailedSchema, sessionsDataEditSchema, sessionsDataLiveSchema, sessionsDataDeleteSchema } from '../validators/session.schema.js';
 
 const router = Router();
 
@@ -47,6 +47,24 @@ router.post('/edit',
     }];
     
     const result = await sqlService.editSessionData(payload);
+
+    res.json(result);
+  })
+);
+
+// POST /sessions/delete - Delete a session
+router.post('/delete',
+  rateLimiter,
+  validateBody(sessionsDataDeleteSchema),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+
+    //replace username with user that made the request
+    const payload = [{
+      ...req.body,
+      username: req.user?.username
+    }];
+    
+    const result = await sqlService.deleteSessionData(payload);
 
     res.json(result);
   })
