@@ -41,3 +41,8 @@ export const sessionsDataEditSchema = z.object({
   log_id: z.string(),
   username: z.string()
 }).strict();
+
+export const sessionsDataDeleteSchema = z.object({
+  log_id: z.string(),
+  username: z.string()
+}).strict();

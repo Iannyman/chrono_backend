@@ -3,7 +3,7 @@ import { config } from '../../config/index.js';
 import { logger } from '../logging/logger.js';
 import type { RecordEvent } from '../../core/domain/RecordEvent.js';
 import type { SqlReadersResponse, ReaderConfig } from '../../core/domain/index.js';
-import type { SessionsDataDetailedPayload, SessionsDataEditPayload, SessionsDataLivePayload, SessionsResponse} from '../../core/domain/Session.js';
+import type { SessionsDataDetailedPayload, SessionsDataEditPayload, SessionsDataDeletePayload, SessionsDataLivePayload, SessionsResponse} from '../../core/domain/Session.js';
 import { alertService } from '../../core/services/AlertService.js';
 
 export class SqlService {
@@ -306,12 +306,44 @@ export class SqlService {
     }
 
     const request = this.pool.request();
-    console.log(payload);
     
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
     const result = await request.execute('dbo.DC_sp_chrono_edit_session');
+
+    let response: SessionsResponse;
+    try {
+      response = JSON.parse(result.output.result);
+    } catch (parseError) {
+      logger.error({
+        rawResult: result.output.result,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      }, 'Failed to parse sessions data edit SP response as JSON');
+      throw new Error('Invalid JSON response from sessions data edit SP');
+    }
+
+    if (!response.success) {
+      logger.error({ sqlResponse: response }, 'Sessions data edit SP returned error');
+      throw new Error(response.message ?? 'Stored procedure returned failure');
+    }
+
+    return response;
+  }
+
+    async deleteSessionData(
+    payload: SessionsDataDeletePayload[]
+  ): Promise<SessionsResponse> {
+    if (!this.pool) {
+      throw new Error('SQL Server not connected');
+    }
+
+    const request = this.pool.request();
+    console.log(payload);
+    request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
+    request.output('result', sql.NVarChar(sql.MAX));
+
+    const result = await request.execute('dbo.DC_sp_chrono_delete_session');
 
     let response: SessionsResponse;
     try {
