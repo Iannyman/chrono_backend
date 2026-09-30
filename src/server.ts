@@ -19,15 +19,15 @@ async function start(): Promise<void> {
     }, 'Starting Hikvision Card Reader Backend');
 
     // Verify email service (optional, don't fail if not configured)
-    // await emailService.verifyConnection();
+    await emailService.verifyConnection();
 
     // Connect to SQL Server
     await sqlService.connect();
 
     // Start event buffer with flush callback
-    // await eventBuffer.start(async (events: RecordEvent[]) => {
-    //   await sqlService.insertBatch(events);
-    // });
+    await eventBuffer.start(async (events: RecordEvent[]) => {
+      await sqlService.insertBatch(events);
+    });
 
     // Start HTTP server
     const server = app.listen(config.server.port, () => {
@@ -37,8 +37,8 @@ async function start(): Promise<void> {
     });
 
     // Start monitoring card readers
-    // const readers = await loadReaders();
-    // await readerMonitoringService.startReaders(readers);
+    const readers = await loadReaders();
+    await readerMonitoringService.startReaders(readers);
 
     // Log buffer stats every minute
     setInterval(() => {
