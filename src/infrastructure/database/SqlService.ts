@@ -269,7 +269,6 @@ export class SqlService {
     }
 
     const request = this.pool.request();
-    console.log(payload);
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 
@@ -308,6 +307,7 @@ export class SqlService {
 
     const request = this.pool.request();
     console.log(payload);
+    
     request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
     request.output('result', sql.NVarChar(sql.MAX));
 

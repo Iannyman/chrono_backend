@@ -39,7 +39,13 @@ router.post('/edit',
   rateLimiter,
   validateBody(sessionsDataEditSchema),
   asyncHandler(async (req: AuthenticatedRequest, res) => {
-    const payload = [req.body];
+
+    //replace username with user that made the request
+    const payload = [{
+      ...req.body,
+      username: req.user?.username
+    }];
+    
     const result = await sqlService.editSessionData(payload);
 
     res.json(result);
