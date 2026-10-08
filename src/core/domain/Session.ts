@@ -18,11 +18,16 @@ export interface SessionsDataDeletePayload {
   username: string;
 }
 
+export interface CreateReaderPayload {
+  logger_ip: string;
+  line_id: string;
+}
+
 export interface SessionsDataLivePayload {
   line_id: string;
 }
 
-export interface SessionsResponse {
+export interface SQLResponse {
   success: number;
   data?: unknown[];
   message?: string;
