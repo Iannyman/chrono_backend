@@ -3,7 +3,7 @@ import { config } from '../../config/index.js';
 import { logger } from '../logging/logger.js';
 import type { RecordEvent } from '../../core/domain/RecordEvent.js';
 import type { SqlReadersResponse, ReaderConfig } from '../../core/domain/index.js';
-import type { SessionsDataDetailedPayload, SessionsDataEditPayload, SessionsDataDeletePayload, SessionsDataLivePayload, SessionsResponse} from '../../core/domain/Session.js';
+import type { SessionsDataDetailedPayload, SessionsDataEditPayload, SessionsDataDeletePayload, SessionsDataLivePayload, SQLResponse, CreateReaderPayload} from '../../core/domain/Session.js';
 import { alertService } from '../../core/services/AlertService.js';
 
 export class SqlService {
@@ -225,7 +225,7 @@ export class SqlService {
 
   async getSessionsDataDetailed(
     payload: SessionsDataDetailedPayload[]
-  ): Promise<SessionsResponse> {
+  ): Promise<SQLResponse> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -237,7 +237,7 @@ export class SqlService {
 
     const result = await request.execute('dbo.DC_sp_chrono_get_sessions_data_detailed');
 
-    let response: SessionsResponse;
+    let response: SQLResponse;
     try {
       response = JSON.parse(result.output.result);
     } catch (parseError) {
@@ -263,7 +263,7 @@ export class SqlService {
 
   async getSessionsDataLive(
     payload: SessionsDataLivePayload[]
-  ): Promise<SessionsResponse> {
+  ): Promise<SQLResponse> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -274,7 +274,7 @@ export class SqlService {
 
     const result = await request.execute('dbo.DC_sp_chrono_get_currently_open_sessions');
 
-    let response: SessionsResponse;
+    let response: SQLResponse;
     try {
       response = JSON.parse(result.output.result);
     } catch (parseError) {
@@ -300,7 +300,7 @@ export class SqlService {
 
   async editSessionData(
     payload: SessionsDataEditPayload[]
-  ): Promise<SessionsResponse> {
+  ): Promise<SQLResponse> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -312,7 +312,7 @@ export class SqlService {
 
     const result = await request.execute('dbo.DC_sp_chrono_edit_session');
 
-    let response: SessionsResponse;
+    let response: SQLResponse;
     try {
       response = JSON.parse(result.output.result);
     } catch (parseError) {
@@ -331,9 +331,9 @@ export class SqlService {
     return response;
   }
 
-    async deleteSessionData(
+  async deleteSessionData(
     payload: SessionsDataDeletePayload[]
-  ): Promise<SessionsResponse> {
+  ): Promise<SQLResponse> {
     if (!this.pool) {
       throw new Error('SQL Server not connected');
     }
@@ -345,7 +345,40 @@ export class SqlService {
 
     const result = await request.execute('dbo.DC_sp_chrono_delete_session');
 
-    let response: SessionsResponse;
+    let response: SQLResponse;
+    try {
+      response = JSON.parse(result.output.result);
+    } catch (parseError) {
+      logger.error({
+        rawResult: result.output.result,
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+      }, 'Failed to parse sessions data edit SP response as JSON');
+      throw new Error('Invalid JSON response from sessions data edit SP');
+    }
+
+    if (!response.success) {
+      logger.error({ sqlResponse: response }, 'Sessions data edit SP returned error');
+      throw new Error(response.message ?? 'Stored procedure returned failure');
+    }
+
+    return response;
+  }
+
+  async createReader(
+    payload: CreateReaderPayload[]
+  ): Promise<SQLResponse> {
+    if (!this.pool) {
+      throw new Error('SQL Server not connected');
+    }
+
+    const request = this.pool.request();
+    console.log(payload);
+    request.input('payload', sql.NVarChar(sql.MAX), JSON.stringify(payload));
+    request.output('result', sql.NVarChar(sql.MAX));
+
+    const result = await request.execute('dbo.DC_sp_chrono_add_logger');
+
+    let response: SQLResponse;
     try {
       response = JSON.parse(result.output.result);
     } catch (parseError) {

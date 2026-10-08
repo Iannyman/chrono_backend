@@ -2,7 +2,10 @@ import { Router } from 'express';
 import { readerStatusStore } from '../../stores/ReaderStatusStore.js';
 import { authenticate, type AuthenticatedRequest } from '../middleware/auth.js';
 import { rateLimiter } from '../middleware/rateLimit.js';
+import { validateBody } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { readersCreateSchema } from '../validators/session.schema.js';
+import { sqlService } from '../../infrastructure/database/SqlService.js';
 
 const router = Router();
 
@@ -47,6 +50,19 @@ router.get('/:name',
     }
 
     return res.json(reader);
+  })
+);
+
+// POST /readers/create - Create a reader
+router.post('/create',
+  rateLimiter,
+  validateBody(readersCreateSchema),
+  asyncHandler(async (req: AuthenticatedRequest, res) => {
+
+    const payload = [req.body];    
+    const result = await sqlService.createReader(payload);
+
+    res.json(result);
   })
 );
 

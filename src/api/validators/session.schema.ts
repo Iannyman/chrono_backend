@@ -46,3 +46,8 @@ export const sessionsDataDeleteSchema = z.object({
   log_id: z.string(),
   username: z.string()
 }).strict();
+
+export const readersCreateSchema = z.object({
+  logger_ip: z.string(),
+  line_id: z.string()
+}).strict();
