@@ -185,6 +185,7 @@ export class EventBuffer {
       }
 
       logger.info({ count: eventsToFlush.length }, 'Events flushed successfully');
+      logger.info(eventsToFlush, 'Buffer flushed');
       return true;
     } catch (error) {
       // Flush failed, put events back with incremented retry count

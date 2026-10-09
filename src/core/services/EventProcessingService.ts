@@ -66,6 +66,7 @@ export class EventProcessingService {
       reader: readerName,
       employeeNo,
       cardNo,
+      eventDateTime,
       eventType,
       bufferSize: eventBuffer.size(),
     }, 'Event processed and buffered');
