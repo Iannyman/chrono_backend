@@ -124,6 +124,22 @@ export class EmailService {
   }
 
   /**
+   * Send a recovery notice about a reader that came back online
+   * @param readerName - Name of the reader
+   * @param offlineDuration - How long the reader was offline, e.g. "2m 30s"
+   */
+  async sendReaderBackOnlineAlert(readerName: string, offlineDuration: string): Promise<void> {
+    const message = `Reader Recovery Notification\n\n` +
+      `Reader: ${readerName}\n` +
+      `Status: Back Online\n` +
+      `Was offline for: ${offlineDuration}\n` +
+      `Time: ${new Date().toISOString()}\n\n` +
+      `The reader has reconnected and is streaming events again.`;
+
+    await this.send(message, `Resolved: Reader ${readerName} Back Online`);
+  }
+
+  /**
    * Send a system alert
    * @param message - Alert message
    * @param subject - Optional custom subject

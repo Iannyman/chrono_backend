@@ -16,6 +16,7 @@ vi.mock('../../../../config/index.js', () => ({
 vi.mock('../../../../core/services/AlertService.js', () => ({
   alertService: {
     sendReaderOfflineAlert: vi.fn(),
+    sendReaderOnlineAlert: vi.fn(),
     clearReaderAlert: vi.fn(),
     sendSystemAlert: vi.fn(),
     getAlertStates: vi.fn(),
