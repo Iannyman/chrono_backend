@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockConfig } from '../../../helpers/mocks.js';
 
-const { mockLogger, mockSendReaderAlert, mockSendSystemAlert } = vi.hoisted(() => ({
+const { mockLogger, mockSendReaderAlert, mockSendSystemAlert, mockSendReaderBackOnlineAlert } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   mockSendReaderAlert: vi.fn(),
   mockSendSystemAlert: vi.fn(),
+  mockSendReaderBackOnlineAlert: vi.fn(),
 }));
 
 vi.mock('../../../../infrastructure/logging/logger.js', () => ({
@@ -18,6 +19,7 @@ vi.mock('../../../../config/index.js', () => ({
 vi.mock('../../../../infrastructure/notifications/email.js', () => ({
   emailService: {
     sendReaderAlert: mockSendReaderAlert,
+    sendReaderBackOnlineAlert: mockSendReaderBackOnlineAlert,
     sendSystemAlert: mockSendSystemAlert,
     send: vi.fn(),
   },
@@ -109,6 +111,75 @@ describe('AlertService', () => {
         expect.objectContaining({ reader: 'Reader1' }),
         'Failed to send reader offline alert'
       );
+    });
+  });
+
+  describe('sendReaderOnlineAlert', () => {
+    it('should send a back-online alert when a prior offline alert was sent', async () => {
+      vi.useFakeTimers();
+      mockSendReaderAlert.mockResolvedValue(undefined);
+      mockSendReaderBackOnlineAlert.mockResolvedValue(undefined);
+
+      // Offline alert goes out at T0 (state.offlineSince = T0)
+      await service.sendReaderOfflineAlert('Reader1', 'Connection lost');
+
+      // Reader recovers 2 minutes later
+      vi.advanceTimersByTime(2 * 60 * 1000);
+      await service.sendReaderOnlineAlert('Reader1');
+
+      expect(mockSendReaderBackOnlineAlert).toHaveBeenCalledWith('Reader1', '2m 0s');
+      vi.useRealTimers();
+    });
+
+    it('should be a no-op when no offline alert was ever sent (e.g. startup connect)', async () => {
+      await service.sendReaderOnlineAlert('Reader1');
+
+      expect(mockSendReaderBackOnlineAlert).not.toHaveBeenCalled();
+    });
+
+    it('should clear the alert state so a fresh outage alerts from zero', async () => {
+      vi.useFakeTimers();
+      mockSendReaderAlert.mockResolvedValue(undefined);
+      mockSendReaderBackOnlineAlert.mockResolvedValue(undefined);
+
+      // Offline alert goes out, then the reader recovers
+      await service.sendReaderOfflineAlert('Reader1', 'Error 1');
+      vi.advanceTimersByTime(60 * 1000);
+      await service.sendReaderOnlineAlert('Reader1');
+
+      expect(service.getAlertStates().has('Reader1')).toBe(false);
+      vi.useRealTimers();
+    });
+
+    it('should clear state even when the recovery email fails', async () => {
+      vi.useFakeTimers();
+      mockSendReaderAlert.mockResolvedValue(undefined);
+      mockSendReaderBackOnlineAlert.mockRejectedValue(new Error('SMTP down'));
+
+      await service.sendReaderOfflineAlert('Reader1', 'Error');
+      vi.advanceTimersByTime(60 * 1000);
+      await service.sendReaderOnlineAlert('Reader1');
+
+      expect(service.getAlertStates().has('Reader1')).toBe(false);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ reader: 'Reader1' }),
+        'Failed to send reader back-online alert'
+      );
+      vi.useRealTimers();
+    });
+
+    it('should format durations over an hour correctly', async () => {
+      vi.useFakeTimers();
+      mockSendReaderAlert.mockResolvedValue(undefined);
+      mockSendReaderBackOnlineAlert.mockResolvedValue(undefined);
+
+      await service.sendReaderOfflineAlert('Reader1', 'Error');
+
+      vi.advanceTimersByTime((65 * 60 + 10) * 1000); // 1h 5m 10s
+      await service.sendReaderOnlineAlert('Reader1');
+
+      expect(mockSendReaderBackOnlineAlert).toHaveBeenCalledWith('Reader1', '1h 05m');
+      vi.useRealTimers();
     });
   });
 

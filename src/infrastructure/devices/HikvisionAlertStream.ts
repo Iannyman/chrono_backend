@@ -255,6 +255,12 @@ export class HikvisionAlertStream {
     }
 
     await this.notifyStatusChange(true);
+
+    // Mirror of the offline alert: if we emailed that this reader went offline,
+    // email again when it recovers. sendReaderOnlineAlert is a no-op when no
+    // offline alert ever went out, so normal (re)connects stay silent.
+    alertService.sendReaderOnlineAlert(this.readerName);
+
     logger.info({ reader: this.readerName, boundary }, 'Connected to device alert stream');
 
     await this.processStream(response.body, boundary);
