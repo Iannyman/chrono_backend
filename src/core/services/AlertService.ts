@@ -1,4 +1,4 @@
-import { emailService } from '../../infrastructure/notifications/email.js';
+import { emailService, type ReaderAlertDiagnostics } from '../../infrastructure/notifications/email.js';
 import { logger } from '../../infrastructure/logging/logger.js';
 
 /**
@@ -24,7 +24,11 @@ export class AlertService {
    * @param readerName - Name of the reader
    * @param error - Error message
    */
-  async sendReaderOfflineAlert(readerName: string, error: string): Promise<void> {
+  async sendReaderOfflineAlert(
+    readerName: string,
+    error: string,
+    diagnostics?: ReaderAlertDiagnostics,
+  ): Promise<void> {
     const now = Date.now();
     const state = this.readerStates.get(readerName) || {
       lastAlertTime: 0,
@@ -48,7 +52,7 @@ export class AlertService {
 
     // Send the alert
     try {
-      await emailService.sendReaderAlert(readerName, error);
+      await emailService.sendReaderAlert(readerName, error, diagnostics);
 
       // Update state
       this.readerStates.set(readerName, {

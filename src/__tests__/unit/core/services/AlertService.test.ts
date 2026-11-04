@@ -41,7 +41,19 @@ describe('AlertService', () => {
 
       await service.sendReaderOfflineAlert('Reader1', 'Connection lost');
 
-      expect(mockSendReaderAlert).toHaveBeenCalledWith('Reader1', 'Connection lost');
+      expect(mockSendReaderAlert).toHaveBeenCalledWith('Reader1', 'Connection lost', undefined);
+    });
+
+    it('should forward reader diagnostics to the email service', async () => {
+      const diagnostics = {
+        ip: '192.168.1.100',
+        endpoint: 'http://192.168.1.100/ISAPI/Event/notification/alertStream?format=json',
+        errorCode: 'ECONNREFUSED',
+      };
+
+      await service.sendReaderOfflineAlert('Reader1', 'fetch failed', diagnostics);
+
+      expect(mockSendReaderAlert).toHaveBeenCalledWith('Reader1', 'fetch failed', diagnostics);
     });
 
     it('should skip alert when within cooldown and under maxConsecutiveAlerts', async () => {
@@ -85,7 +97,7 @@ describe('AlertService', () => {
       vi.advanceTimersByTime(15 * 60 * 1000 + 1);
 
       await service.sendReaderOfflineAlert('Reader1', 'Error 2');
-      expect(mockSendReaderAlert).toHaveBeenCalledWith('Reader1', 'Error 2');
+      expect(mockSendReaderAlert).toHaveBeenCalledWith('Reader1', 'Error 2', undefined);
       vi.useRealTimers();
     });
 
