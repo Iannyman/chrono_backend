@@ -6,6 +6,67 @@ import { alertService } from '../../core/services/AlertService.js';
 /** Response type returned by digest-fetch's fetch(). */
 type AlertStreamResponse = Awaited<ReturnType<DigestFetch['fetch']>>;
 
+interface StreamErrorDetails {
+  message: string;
+  name?: string;
+  code?: string;
+  cause?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getStreamErrorDetails(error: unknown): StreamErrorDetails {
+  const record = isRecord(error) ? error : undefined;
+  const details: StreamErrorDetails = {
+    message: error instanceof Error ? error.message : 'Unknown error',
+  };
+
+  if (error instanceof Error) {
+    details.name = error.name;
+  } else if (typeof record?.name === 'string') {
+    details.name = record.name;
+  }
+
+  if (typeof record?.code === 'string') {
+    details.code = record.code;
+  }
+
+  const causes: string[] = [];
+  const visited = new Set<object>();
+  let current = record?.cause;
+  let depth = 0;
+
+  while (current !== undefined && current !== null && depth < 5) {
+    const causeRecord = isRecord(current) ? current : undefined;
+    if (causeRecord && visited.has(causeRecord)) break;
+    if (causeRecord) visited.add(causeRecord);
+
+    if (!details.code && typeof causeRecord?.code === 'string') {
+      details.code = causeRecord.code;
+    }
+
+    const causeMessage = current instanceof Error
+      ? current.message
+      : typeof current === 'string'
+        ? current
+        : typeof causeRecord?.message === 'string'
+          ? causeRecord.message
+          : undefined;
+
+    if (causeMessage) causes.push(causeMessage);
+    current = causeRecord?.cause;
+    depth += 1;
+  }
+
+  if (causes.length > 0) {
+    details.cause = causes.join(' <- ');
+  }
+
+  return details;
+}
+
 export interface EventCallback {
   (data: HikvisionEventData): void | Promise<void>;
 }
@@ -134,7 +195,8 @@ export class HikvisionAlertStream {
         await this.connectAndProcess();
         this.consecutiveFailures = 0;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorDetails = getStreamErrorDetails(error);
+        const errorMessage = errorDetails.message;
         logger.error({ reader: this.readerName, error: errorMessage }, 'Alert stream error');
 
         this.consecutiveFailures += 1;
@@ -144,7 +206,13 @@ export class HikvisionAlertStream {
         // recoverable blip (one that survived the in-connect retry) doesn't spam
         // an offline alert. notifyStatusChange still marks the reader offline.
         if (this.consecutiveFailures >= this.offlineAlertThreshold) {
-          alertService.sendReaderOfflineAlert(this.readerName, errorMessage);
+          alertService.sendReaderOfflineAlert(this.readerName, errorMessage, {
+            ip: this.ip,
+            endpoint: this.url,
+            errorName: errorDetails.name,
+            errorCode: errorDetails.code,
+            cause: errorDetails.cause,
+          });
         } else {
           logger.debug(
             { reader: this.readerName, consecutiveFailures: this.consecutiveFailures },

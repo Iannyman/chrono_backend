@@ -9,6 +9,14 @@ export interface EmailResult {
   messageId?: string;
 }
 
+export interface ReaderAlertDiagnostics {
+  ip?: string;
+  endpoint?: string;
+  errorName?: string;
+  errorCode?: string;
+  cause?: string;
+}
+
 /**
  * Email notification service
  * Handles sending email alerts for reader failures and system events
@@ -111,16 +119,61 @@ export class EmailService {
    * Send an alert about reader communication failure
    * @param readerName - Name of the reader
    * @param error - Error message
+   * @param diagnostics - Additional connection and error details, when available
    */
-  async sendReaderAlert(readerName: string, error: string): Promise<void> {
+  async sendReaderAlert(readerName: string, error: string, diagnostics?: ReaderAlertDiagnostics): Promise<void> {
+    const details = diagnostics
+      ? [
+          diagnostics.ip && `Reader IP: ${diagnostics.ip}`,
+          diagnostics.endpoint && `Endpoint: ${diagnostics.endpoint}`,
+          diagnostics.errorName && `Error type: ${diagnostics.errorName}`,
+          diagnostics.errorCode && `Error code: ${diagnostics.errorCode}`,
+          diagnostics.cause && `Underlying cause: ${diagnostics.cause}`,
+          `Likely cause / next checks: ${this.getReaderTroubleshootingHint(error, diagnostics)}`,
+        ].filter(Boolean).join('\n')
+      : '';
     const message = `Reader Communication Alert\n\n` +
       `Reader: ${readerName}\n` +
       `Status: Offline\n` +
       `Error: ${error}\n` +
+      (details ? `${details}\n` : '') +
       `Time: ${new Date().toISOString()}\n\n` +
       `Please check the device connectivity.`;
 
     await this.send(message, `Alert: Reader ${readerName} Offline`);
+  }
+
+  private getReaderTroubleshootingHint(error: string, diagnostics: ReaderAlertDiagnostics): string {
+    const failure = [error, diagnostics.errorCode, diagnostics.cause].filter(Boolean).join(' ').toLowerCase();
+
+    if (failure.includes('econnrefused')) {
+      return 'The reader refused the connection. Confirm it is powered on, the configured IP is correct, and HTTP port 80 is reachable from this server.';
+    }
+
+    if (failure.includes('etimedout') || failure.includes('und_err_connect_timeout') || failure.includes('timed out')) {
+      return 'The connection timed out. Check network routing or firewall rules and confirm the reader is reachable from this server.';
+    }
+
+    if (failure.includes('enotfound') || failure.includes('eai_again')) {
+      return 'The reader address could not be resolved. Verify the configured address and DNS/network settings.';
+    }
+
+    if (failure.includes('econnreset') || failure.includes('und_err_socket') ||
+        failure.includes('terminated') || failure.includes('socket hang up') ||
+        failure.includes('stream ended')) {
+      return 'The connection closed unexpectedly. Check for reader restarts, network interruptions, or issues with the device alert-stream service.';
+    }
+
+    if (failure.includes('http 401') || failure.includes('http 403') ||
+        failure.includes('authentication') || failure.includes('unauthorized')) {
+      return 'The reader rejected the request. Verify the configured reader credentials and check the error above for account-lock details.';
+    }
+
+    if (/http 5\d\d/.test(failure)) {
+      return 'The reader returned a server error. Check the device health and alert-stream service, then retry.';
+    }
+
+    return 'Confirm the reader is powered on and reachable at the listed IP, and that its HTTP alert-stream service is available. Compare the error details with device and network logs.';
   }
 
   /**

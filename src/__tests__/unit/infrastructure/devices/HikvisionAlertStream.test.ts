@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mockConfig } from '../../../helpers/mocks.js';
 
-const { mockLogger } = vi.hoisted(() => ({
+const { mockLogger, mockSendReaderOfflineAlert } = vi.hoisted(() => ({
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  mockSendReaderOfflineAlert: vi.fn(),
 }));
 
 vi.mock('../../../../infrastructure/logging/logger.js', () => ({
@@ -15,7 +16,7 @@ vi.mock('../../../../config/index.js', () => ({
 
 vi.mock('../../../../core/services/AlertService.js', () => ({
   alertService: {
-    sendReaderOfflineAlert: vi.fn(),
+    sendReaderOfflineAlert: mockSendReaderOfflineAlert,
     sendReaderOnlineAlert: vi.fn(),
     clearReaderAlert: vi.fn(),
     sendSystemAlert: vi.fn(),
@@ -41,6 +42,43 @@ describe('HikvisionAlertStream', () => {
     vi.clearAllMocks();
     onEvent = vi.fn();
     onStatusChange = vi.fn();
+  });
+
+  describe('offline alert diagnostics', () => {
+    it('passes the reader address, endpoint, and nested fetch cause to offline alerts', async () => {
+      stream = new HikvisionAlertStream({
+        readerName: 'Reader1',
+        ip: '192.168.1.100',
+        username: 'admin',
+        password: 'pass',
+      });
+      const cause = Object.assign(new Error('connect ECONNREFUSED 192.168.1.100:80'), {
+        code: 'ECONNREFUSED',
+      });
+      const failure = new TypeError('fetch failed', { cause });
+      (stream as any).isRunning = true;
+      (stream as any).connectAndProcess = vi.fn().mockRejectedValue(failure);
+      (stream as any).delay = vi.fn().mockImplementation(() => {
+        if (mockSendReaderOfflineAlert.mock.calls.length > 0) {
+          (stream as any).isRunning = false;
+        }
+        return Promise.resolve();
+      });
+
+      await (stream as any).listen();
+
+      expect(mockSendReaderOfflineAlert).toHaveBeenCalledWith(
+        'Reader1',
+        'fetch failed',
+        expect.objectContaining({
+          ip: '192.168.1.100',
+          endpoint: 'http://192.168.1.100/ISAPI/Event/notification/alertStream?format=json',
+          errorName: 'TypeError',
+          errorCode: 'ECONNREFUSED',
+          cause: 'connect ECONNREFUSED 192.168.1.100:80',
+        }),
+      );
+    });
   });
 
   describe('start', () => {

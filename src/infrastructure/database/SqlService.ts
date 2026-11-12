@@ -79,7 +79,10 @@ export class SqlService {
       }, 'Stored procedure returned error');
 
       // Send email alert
-      alertService.sendSystemAlert(response.message, 'SQL Event');
+      alertService.sendSystemAlert(
+        `${response.message}\n\n${this.formatReaderDetails(event)}`,
+        'SQL Event',
+      );
 
       throw new Error(response.message ?? 'Stored procedure returned failure');
     } else {
@@ -165,7 +168,7 @@ export class SqlService {
         }, 'Failed to insert event');
 
         // Send email alert
-        const emailMessage = error instanceof Error ? error.message : String(error);
+        const emailMessage = `${error instanceof Error ? error.message : String(error)}\n\n${this.formatReaderDetails(event)}`;
         alertService.sendSystemAlert(emailMessage, 'SQL Connection');
       }
     }
@@ -395,6 +398,19 @@ export class SqlService {
     }
 
     return response;
+  }
+
+  private formatReaderDetails(event: RecordEvent): string {
+    const details = [
+      `Reader: ${event.readerName}`,
+      `Reader IP: ${event.readerIp}`,
+      event.deviceName && `Device name: ${event.deviceName}`,
+      event.cardReaderNo !== undefined && `Card reader number: ${event.cardReaderNo}`,
+      event.doorNo !== undefined && `Door number: ${event.doorNo}`,
+      `Event time: ${event.eventDateTime.toISOString()}`,
+    ].filter(Boolean);
+
+    return `Reader Details\n${details.join('\n')}`;
   }
 }
 
